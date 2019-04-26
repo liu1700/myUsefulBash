@@ -1,0 +1,11 @@
+#!/bin/sh
+
+NODES=`redis-cli -h $1 cluster nodes | cut -f2 -d' '`
+
+IFS="
+"
+
+for node in $NODES; do
+	echo Cutting connections of node $node...
+  redis-cli -h ${node%:*} -p ${node##*:} client list | awk '{print $2}' | cut -d'=' -f2 - | xargs -I{} redis-cli -h ${node%:*} -p ${node##*:} client kill {}
+done

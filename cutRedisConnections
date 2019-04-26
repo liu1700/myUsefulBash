@@ -7,5 +7,5 @@ IFS="
 
 for node in $NODES; do
 	echo Cutting connections of node $node...
-  redis-cli -h ${node%:*} -p ${node##*:} client list | awk '{print $2}' | cut -d'=' -f2 - | xargs -I{} redis-cli -h ${node%:*} -p ${node##*:} client kill {}
+ 	redis-cli -h ${node%:*} -p ${node##*:} client list | awk '{print $2}' | cut -d'=' -f2 - | xargs -I{} redis-cli -h ${node%:*} -p ${node##*:} client kill {}
 done

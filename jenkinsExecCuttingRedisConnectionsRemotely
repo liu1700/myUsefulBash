@@ -1,0 +1,48 @@
+#!/bin/sh
+
+echo "Retrieving aws ec2 ips of $APP_NAME"
+HOST_IP=`aws ec2 describe-instances --filters "Name=tag:App_Name,Values=$APP_NAME" "Name=tag:Env,Values=staging" --query "Reservations[*].Instances[*].[PrivateIpAddress]" | jq -r .[0][0][0]`
+
+echo "First usable ip is $HOST_IP"
+
+if $IS_REDIS_CLUSTER
+then
+echo "Preparing scripts for cluster redis: $REDIS_HOST"
+# the ssh commands need to be executed in remote host for redis cluster
+echo "
+#!/bin/sh
+
+NODES=\$(redis-cli -h REDIS_HOST cluster nodes | cut -f2 -d' ')
+
+IFS=\"
+\"
+
+for node in \$NODES; do
+    echo Cutting connections of node \$node...
+    redis-cli -h \${node%:*} -p \${node##*:} client list | awk '{print \$2}' | cut -d'=' -f2 - | xargs -I{} redis-cli -h \${node%:*} -p \${node##*:} client kill {}
+done
+" >> /tmp/greetings.sh
+
+else
+echo "Preparing scripts for single redis: $REDIS_HOST"
+# the ssh commands need to be executed in remote host for redis single
+echo "
+#!/bin/sh
+HOST_NAME=REDIS_HOST
+redis-cli -h \$HOST_NAME client list | awk '{print \$2}' | cut -d'=' -f2 - | xargs -I{} redis-cli -h \$HOST_NAME client kill {}
+" >> /tmp/greetings.sh
+
+fi
+
+sed -i -e "s/REDIS_HOST/$REDIS_HOST/" /tmp/greetings.sh
+
+echo "Redis spof cutting connection scripts"
+cat /tmp/greetings.sh
+
+echo "Execute scripts"
+ssh -o StrictHostKeyChecking=no $HOST_IP 'bash -s' < /tmp/greetings.sh
+
+if [ -f /tmp/greetings.sh ]
+then
+rm -f /tmp/greetings.sh
+fi

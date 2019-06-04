@@ -1,0 +1,47 @@
+#!/bin/sh
+
+echo "Retrieving aws ec2 ips of $APP_NAME"
+HOST_IPS=`aws ec2 describe-instances --filters "Name=tag:App_Name,Values=$APP_NAME" "Name=tag:Env,Values=staging" --query "Reservations[*].Instances[*].[PrivateIpAddress]" | jq -r .[][0][0]`
+
+echo "IPS: $HOST_IPS \n"
+
+echo "Preparing scripts for redis: $REDIS_HOST\n"
+
+if $TO_RESTORE_SERVICE
+then
+
+echo "
+#!/bin/sh
+sudo iptables -F -v
+sudo iptables -L
+" >> /tmp/greetings.sh
+
+else
+
+echo "
+#!/bin/sh
+
+NODES=\$(dig +short REDIS_HOST | grep '^[.0-9]*\$')
+
+for node in \$NODES; do
+    echo Cutting connections of node \$node...
+    sudo iptables -I INPUT -s \${node%:*} -j DROP -v
+    sudo iptables -I OUTPUT -s \${node%:*} -j DROP -v
+    sudo iptables -L
+done
+" >> /tmp/greetings.sh
+
+sed -i -e "s/REDIS_HOST/$REDIS_HOST/" /tmp/greetings.sh
+
+fi
+
+for hostip in $HOST_IPS; do
+    echo "Execute scripts on: $hostip"
+    #cat /tmp/greetings.sh
+   	ssh -o StrictHostKeyChecking=no $hostip 'bash -s' < /tmp/greetings.sh
+done
+
+if [ -f /tmp/greetings.sh ]
+then
+rm -f /tmp/greetings.sh
+fi

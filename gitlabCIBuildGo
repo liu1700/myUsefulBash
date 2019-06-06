@@ -1,0 +1,52 @@
+stages:
+  - build
+  - test
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive  
+  REPO_NAME: some_path
+  ARTI_PATH: $CI_PROJECT_DIR/artifacts
+
+build_matrix_server:
+  image: golang:1.10
+  tags:
+    - some-runner
+  stage: build
+  before_script:
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+    - cd real_matrix
+    - git fetch
+    - git merge origin/master
+    - cd ..
+  script:
+    - mkdir -p $GOPATH/src/$REPO_NAME
+    - ln -svf $CI_PROJECT_DIR/* $GOPATH/src/$REPO_NAME
+    - mkdir -p $GOPATH/src/$MATRIX_REPO_NAME
+    - cp -r $GOPATH/src/$REPO_NAME/real_matrix/* $GOPATH/src/$MATRIX_REPO_NAME/
+    - cd $GOPATH/src/mmmmm
+    - cd $GOPATH/src/$MATRIX_REPO_NAME
+    - go get -v ./...
+    - go install
+    - mkdir $CI_PROJECT_DIR/artifacts
+    - cp $GOPATH/bin/matrix $ARTI_PATH/real_matrix
+  artifacts:
+    paths:
+      - $ARTI_PATH/
+
+run_tests:
+  image: augurproject/python2-and-3
+  tags:
+    - some-runner
+  stage: test
+  dependencies:
+    - build_matrix_server
+  script:
+    - cd $ARTI_PATH
+    - ls -l real_matrix
+    - nohup ./real_matrix 1>/dev/null 2>&1 &
+    - sleep 2
+    - cd $CI_PROJECT_DIR
+    - python setup.py install
+    - cd $CI_PROJECT_DIR/tests
+    - python test_ID.py -v

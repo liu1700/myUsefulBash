@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# gitlab access token for wget via http: *****
+PROJECT_ID='*****'
+PRIVATE_TOKEN='*******'
+PIPELINE_TRIGGER_TOKEN='********'
+WEBHOOK_SECRET_TOKEN='justtrigger'
+
+mkdir -p ~/working/ && cd ~/working/
+
+wget --header="PRIVATE-TOKEN: $PRIVATE_TOKEN" https://gitlab.com/api/v4/projects/$PROJECT_ID/repository/archive.tar.gz
+
+mkdir -p ~/working/ci-proxy/
+
+tar -xvzf archive.tar.gz -C ./ci-proxy --strip-components=1
+
+cd ci-proxy && docker build --no-cache -t gitlab-ci-trigger:latest .
+docker run -dit --restart="always" --network="host" gitlab-ci-trigger:latest -trigger-token $PIPELINE_TRIGGER_TOKEN -se

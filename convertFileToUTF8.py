@@ -18,6 +18,10 @@ for filename in glob.glob(rawPath+'/*.csv'):
         detector.close()
         print (detector.result)
 
+        if detector.result['encoding'].lower() != 'gb2312' or detector.result['confidence'] < 0.8:
+            print('pass')
+            continue
+
         baseName = os.path.basename(filename)
         f1 = open(filename, 'rb')
         content = f1.read().decode(detector.result['encoding'].lower())
